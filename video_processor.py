@@ -3,23 +3,32 @@ from moviepy import VideoFileClip, vfx
 import numpy as np
 import cv2
 
-def enhance_frame(frame):
+def enhance_frame(frame, vivid_mode=False):
     """
-    Applies fast high-quality sharpening and color enhancement.
+    Applies high-detail sharpening and optionally a vivid color boost.
     """
-    # 1. Fast Sharpening (Unsharp Mask)
-    # Using a simpler sharpening kernel is much faster than bilateral filtering
-    gaussian_blur = cv2.GaussianBlur(frame, (0, 0), 3)
-    sharpened = cv2.addWeighted(frame, 1.5, gaussian_blur, -0.5, 0)
+    # 1. Detail & Clarity Boost (Laplacian Sharpening)
+    # This brings out fine details without creating too much noise
+    kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+    sharpened = cv2.filter2D(frame, -1, kernel)
     
-    # 2. Color Enhancement (Vibrance boost)
-    hsv = cv2.cvtColor(sharpened, cv2.COLOR_RGB2HSV)
-    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.15, 0, 255).astype(np.uint8)
-    enhanced = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+    # Blend sharpened with original to control intensity
+    enhanced = cv2.addWeighted(frame, 0.7, sharpened, 0.3, 0)
     
-    return enhanced
+    # 2. Color Enhancement
+    hsv = cv2.cvtColor(enhanced, cv2.COLOR_RGB2HSV)
+    if vivid_mode:
+        # Aggressive but smooth saturation boost for Vivid Mode
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.4, 0, 255).astype(np.uint8)
+        # Slight contrast boost in Value channel
+        hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.1, 0, 255).astype(np.uint8)
+    else:
+        # Standard natural boost
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.15, 0, 255).astype(np.uint8)
+    
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
 
-def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, color_jitter=True, enhance_quality=False):
+def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, color_jitter=True, enhance_quality=False, vivid_mode=False):
     """
     Processes a video with various effects to avoid copyright detection.
     Compatible with MoviePy 2.x API.
@@ -68,7 +77,7 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
     
     # 5. Quality Enhancement (Sharpening & Saturation)
     if enhance_quality:
-        clip = clip.image_transform(enhance_frame)
+        clip = clip.image_transform(lambda f: enhance_frame(f, vivid_mode=vivid_mode))
     
     # Final safety check: Force even dimensions using NATIVE cropping (Much faster)
     final_w, final_h = clip.size
@@ -85,12 +94,12 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
     clip.write_videofile(output_path, 
                         codec='libx264', 
                         audio_codec='aac',
-                        audio_bitrate='192k', # Standard high quality
+                        audio_bitrate='320k', 
                         temp_audiofile='temp-audio.m4a', 
                         remove_temp=True,
                         threads=os.cpu_count(), 
                         fps=clip.fps,
-                        preset='ultrafast', # TURBO SPEED
+                        preset='medium', # Balanced speed and quality
                         ffmpeg_params=ffmpeg_params) 
     
     clip.close()

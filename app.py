@@ -76,7 +76,8 @@ def main():
         with col_check2:
             color_jitter = st.checkbox("Color Jitter", value=True, help="Subtle brightness/contrast changes.")
 
-        enhance_quality = st.checkbox("✨ AI Quality Enhancement (Beta)", value=False, help="Uses sharpening and color boosting to enhance clarity, similar to basic Remini effects.")
+        enhance_quality = st.checkbox("✨ AI Quality Enhancement (Beta)", value=False, help="Uses sharpening and color boosting to enhance clarity.")
+        vivid_mode = st.checkbox("🌈 Vivid Mode", value=False, help="Boosts saturation and contrast for a more vibrant, professional look.")
 
         st.markdown("---")
         
@@ -100,7 +101,8 @@ def main():
                                 zoom=zoom, 
                                 mirror=mirror, 
                                 color_jitter=color_jitter,
-                                enhance_quality=enhance_quality
+                                enhance_quality=enhance_quality,
+                                vivid_mode=vivid_mode
                             )
                         
                         st.success("✅ Video Processed Successfully!")
