@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+venv.bak/
+env.bak/
+temp-audio.m4a
+test_data/
+*.mp4
+.streamlit/
