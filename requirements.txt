@@ -1,12 +1,13 @@
-# Core
 streamlit
+rich==15.0.0
+markdown-it-py==4.0.0
+mdurl==0.1.2
+pygments==2.20.0
 setuptools
 numpy
 Pillow
 moviepy
 opencv-python-headless
-
-# ML / AI
 torch
 torchvision
 torchaudio
@@ -14,8 +15,6 @@ basicsr
 gfpgan
 realesrgan
 rembg
-
-# UI / Helpers
 streamlit-image-comparison
 future
 ffmpeg-python
