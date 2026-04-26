@@ -74,9 +74,14 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
     if enhance_quality:
         clip = clip.image_transform(enhance_frame)
     
-    # Final rendering with High-Quality Settings
-    # preset='slow' for better compression efficiency
-    # CRF=18 is considered visually lossless
+    # Final safety check for even dimensions (required by libx264)
+    # This is a hard enforcement to prevent 'width not divisible by 2' errors.
+    final_w, final_h = clip.size
+    if final_w % 2 != 0 or final_h % 2 != 0:
+        safe_w = int(final_w // 2) * 2
+        safe_h = int(final_h // 2) * 2
+        clip = clip.resized(width=safe_w, height=safe_h)
+
     ffmpeg_params = [
         "-crf", "18",
         "-pix_fmt", "yuv420p" # Ensure compatibility with all players
