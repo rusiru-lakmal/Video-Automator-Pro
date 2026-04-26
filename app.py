@@ -77,7 +77,8 @@ def main():
             color_jitter = st.checkbox("Color Jitter", value=True, help="Subtle brightness/contrast changes.")
 
         enhance_quality = st.checkbox("✨ AI Quality Enhancement (Beta)", value=False, help="Uses sharpening and color boosting to enhance clarity.")
-        vivid_mode = st.checkbox("🌈 Vivid Mode", value=False, help="Boosts saturation and contrast for a more vibrant, professional look.")
+        vivid_mode = st.checkbox("🌈 Vivid Mode", value=False, help="Boosts saturation and contrast for a more vibrant look.")
+        cinematic_mode = st.checkbox("🎬 Cinematic Mode (9:16)", value=False, help="Auto-crops to 9:16 vertical (Reels/TikTok) and applies film-style color grading.")
 
         st.markdown("---")
         
@@ -102,7 +103,8 @@ def main():
                                 mirror=mirror, 
                                 color_jitter=color_jitter,
                                 enhance_quality=enhance_quality,
-                                vivid_mode=vivid_mode
+                                vivid_mode=vivid_mode,
+                                cinematic_mode=cinematic_mode
                             )
                         
                         st.success("✅ Video Processed Successfully!")

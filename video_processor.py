@@ -28,15 +28,32 @@ def enhance_frame(frame, vivid_mode=False):
     
     return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
 
-def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, color_jitter=True, enhance_quality=False, vivid_mode=False):
+def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, color_jitter=True, enhance_quality=False, vivid_mode=False, cinematic_mode=False):
     """
-    Processes a video with various effects to avoid copyright detection.
-    Compatible with MoviePy 2.x API.
+    Processes a video with various effects to avoid copyright detection and add cinematic quality.
     """
     # Load video
     clip = VideoFileClip(input_path)
     
-    # 1. Mirror Effect
+    # 1. Cinematic Framing (Crop to Fill 1080x1920)
+    if cinematic_mode:
+        target_ratio = 1080 / 1920
+        w, h = clip.size
+        current_ratio = w / h
+        
+        if current_ratio > target_ratio:
+            # Video is too wide, crop sides
+            new_w = h * target_ratio
+            clip = clip.cropped(x_center=w/2, y_center=h/2, width=new_w, height=h)
+        else:
+            # Video is too tall, crop top/bottom
+            new_h = w / target_ratio
+            clip = clip.cropped(x_center=w/2, y_center=h/2, width=w, height=new_h)
+        
+        # Resize to standard Reels resolution
+        clip = clip.resized(width=1080, height=1920)
+    
+    # 2. Mirror Effect
     if mirror:
         clip = clip.with_effects([vfx.MirrorX()])
     
@@ -75,9 +92,18 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
         # Subtle increase in contrast and slight brightness shift
         clip = clip.with_effects([vfx.LumContrast(lum=5, contrast=0.05)])
     
-    # 5. Quality Enhancement (Sharpening & Saturation)
+    # 5. Cinematic Effects
+    if cinematic_mode:
+        # Gamma correction, Contrast boost, and Brightness multiplication
+        clip = clip.with_effects([
+            vfx.GammaCorrection(gamma=1.2),
+            vfx.LumContrast(lum=0, contrast=0.1), # +10% Contrast
+            vfx.MultiplyColor(1.05) # Subtle brightness boost
+        ])
+    
+    # 6. Quality Enhancement (Sharpening & Saturation)
     if enhance_quality:
-        clip = clip.image_transform(lambda f: enhance_frame(f, vivid_mode=vivid_mode))
+        clip = clip.image_transform(lambda f: enhance_frame(f, vivid_mode=vivid_mode or cinematic_mode))
     
     # Final safety check: Force even dimensions using NATIVE cropping (Much faster)
     final_w, final_h = clip.size
@@ -91,6 +117,10 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
         "-pix_fmt", "yuv420p"
     ]
     
+    # Final rendering with High-Quality Settings
+    # Use 'slow' for Cinematic Mode for best detail retention
+    render_preset = 'slow' if cinematic_mode else 'medium'
+    
     clip.write_videofile(output_path, 
                         codec='libx264', 
                         audio_codec='aac',
@@ -99,7 +129,7 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
                         remove_temp=True,
                         threads=os.cpu_count(), 
                         fps=clip.fps,
-                        preset='medium', # Balanced speed and quality
+                        preset=render_preset,
                         ffmpeg_params=ffmpeg_params) 
     
     clip.close()
