@@ -1,7 +1,4 @@
 streamlit
-moviepy
-numpy
-opencv-python
 torch
 torchvision
 torchaudio
@@ -9,5 +6,7 @@ basicsr
 gfpgan
 realesrgan
 rembg
+opencv-python
 Pillow
+numpy
 streamlit-image-comparison

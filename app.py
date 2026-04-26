@@ -3,124 +3,151 @@ import os
 import tempfile
 from video_processor import process_video
 
-# Page configuration
-st.set_page_config(
-    page_title="Video Automator Pro",
-    page_icon="🎬",
-    layout="wide"
-)
+# ── Video Tool UI ─────────────────────────────────────────────────────────────
+def main():
+    st.markdown('<div class="video-tool">', unsafe_allow_html=True)
 
-# Custom CSS for premium look
-st.markdown("""
-    <style>
-    .main {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        color: #e94560;
-    }
-    .stButton>button {
-        background-color: #e94560;
-        color: white;
-        border-radius: 10px;
-        padding: 0.5rem 2rem;
-        font-weight: bold;
-        border: none;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        background-color: #0f3460;
-        box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
-    }
-    .stSlider > div > div > div > div {
-        background-color: #e94560;
-    }
-    .header-text {
-        text-align: center;
-        color: #e94560;
-        font-size: 3rem;
-        font-weight: 800;
-        margin-bottom: 1rem;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    }
-    .sub-text {
-        text-align: center;
-        color: #95a5a6;
-        margin-bottom: 3rem;
-    }
-    </style>
+    # ── Hero Banner ────────────────────────────────────────────────────────────
+    st.markdown("""
+    <div class="hero-banner">
+        <div class="hero-badge">🎬 Video Suite</div>
+        <h1 class="hero-title">Video Automator Pro</h1>
+        <p class="hero-sub">
+            Bypass copyright fingerprinting with military-grade AI transformations.
+            Mirror, retime, regrade — in one click.
+        </p>
+        <div class="stats-row">
+            <div class="stat-pill">Speed <span>0.5× – 2.0×</span></div>
+            <div class="stat-pill">Zoom <span>1.0× – 2.0×</span></div>
+            <div class="stat-pill">Modes <span>Mirror · Vivid · Cinematic</span></div>
+            <div class="stat-pill">Output <span>H.264 · AAC 320k</span></div>
+        </div>
+    </div>
     """, unsafe_allow_html=True)
 
-def main():
-    st.markdown('<h1 class="header-text">🎬 Video Automator Pro</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-text">Bypass copyright detection with advanced AI-powered transformations</p>', unsafe_allow_html=True)
+    # ── Main Grid ──────────────────────────────────────────────────────────────
+    left, right = st.columns([1.15, 1], gap="large")
 
-    col1, col2 = st.columns([1, 1])
+    # ── LEFT: Upload & Preview ─────────────────────────────────────────────────
+    with left:
+        st.markdown('<div class="section-label">01 — Media Source</div>', unsafe_allow_html=True)
 
-    with col1:
-        st.subheader("📁 Upload Video")
-        uploaded_file = st.file_uploader("Choose a video file (MP4 or MOV)", type=['mp4', 'mov'])
-        
+        st.markdown("""
+        <div class="glass-card" style="padding-bottom:0;border-bottom:0;border-radius:16px 16px 0 0;">
+            <div class="card-header">
+                <div class="card-icon icon-red">📁</div>
+                <div>
+                    <div class="card-title">Media Library</div>
+                    <div class="card-subtitle">MP4 or MOV · Any resolution</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        uploaded_file = st.file_uploader(
+            "Drop your video here, or browse",
+            type=['mp4', 'mov'],
+            label_visibility="collapsed",
+            key="video_upload"
+        )
+
         if uploaded_file:
+            st.markdown("<br>", unsafe_allow_html=True)
             st.video(uploaded_file)
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;gap:8px;margin-top:12px;
+                        padding:10px 14px;background:rgba(255,255,255,0.03);
+                        border:1px solid rgba(255,255,255,0.07);border-radius:10px;">
+                <span style="color:#22c55e;font-size:1.1rem;">✓</span>
+                <span style="font-size:0.82rem;color:rgba(255,255,255,0.6);">
+                    <strong style="color:#fff">{uploaded_file.name}</strong> &nbsp;·&nbsp;
+                    {round(uploaded_file.size/1024/1024, 1)} MB loaded
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
 
-    with col2:
-        st.subheader("⚙️ Transformation Settings")
-        
-        # Sliders
-        speed = st.slider("Playback Speed", 0.5, 2.0, 1.05, 0.01, help="Slightly increasing speed helps bypass fingerprinting.")
-        zoom = st.slider("Zoom Level", 1.0, 2.0, 1.10, 0.05, help="Zooming in removes edge patterns used for detection.")
-        
-        # Checkboxes
-        col_check1, col_check2 = st.columns(2)
-        with col_check1:
-            mirror = st.checkbox("Mirror Effect", value=True, help="Flips the video horizontally.")
-        with col_check2:
-            color_jitter = st.checkbox("Color Jitter", value=True, help="Subtle brightness/contrast changes.")
+    # ── RIGHT: Controls ────────────────────────────────────────────────────────
+    with right:
+        st.markdown('<div class="section-label">02 — Transformation Engine</div>', unsafe_allow_html=True)
 
-        enhance_quality = st.checkbox("✨ AI Quality Enhancement (Beta)", value=False, help="Uses sharpening and color boosting to enhance clarity.")
-        vivid_mode = st.checkbox("🌈 Vivid Mode", value=False, help="Boosts saturation and contrast for a more vibrant look.")
-        cinematic_mode = st.checkbox("🎬 Cinematic Mode (9:16)", value=False, help="Auto-crops to 9:16 vertical (Reels/TikTok) and applies film-style color grading.")
+        # -- Speed & Zoom Card --
+        st.markdown("""
+        <div class="glass-card">
+            <div class="card-header">
+                <div class="card-icon icon-gold">⚡</div>
+                <div>
+                    <div class="card-title">Temporal Controls</div>
+                    <div class="card-subtitle">Speed & spatial reframing</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        st.markdown("---")
-        
-        if st.button("🚀 Process & Render"):
-            if uploaded_file is not None:
+        speed = st.slider("Playback Speed ×", 0.5, 2.0, 1.05, 0.01,
+                          help="Shifts audio fingerprint; 1.05× is imperceptible")
+        zoom  = st.slider("Zoom Level ×", 1.0, 2.0, 1.10, 0.05,
+                          help="Crops edge detection patterns")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # -- Toggles Card --
+        st.markdown("""
+        <div class="glass-card">
+            <div class="card-header">
+                <div class="card-icon icon-red">🎛️</div>
+                <div>
+                    <div class="card-title">Signal Processing</div>
+                    <div class="card-subtitle">Copyright bypass layers</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            mirror        = st.checkbox("↔ Mirror", value=True)
+            enhance       = st.checkbox("✨ AI Enhance", value=False)
+            cinematic     = st.checkbox("🎬 Cinematic 9:16", value=False)
+        with col_b:
+            color_jitter  = st.checkbox("🎨 Color Jitter", value=True)
+            vivid         = st.checkbox("🌈 Vivid Mode", value=False)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # -- Render Button --
+        if st.button("🚀  Process & Render", key="video_render_btn"):
+            if uploaded_file is None:
+                st.warning("Please upload a video first.")
+            else:
                 try:
-                    # Create a temporary directory for processing
-                    with tempfile.TemporaryDirectory() as tmp_dir:
-                        # Save uploaded file
-                        input_path = os.path.join(tmp_dir, "input_video.mp4")
-                        with open(input_path, "wb") as f:
+                    with tempfile.TemporaryDirectory() as tmp:
+                        inp = os.path.join(tmp, "input.mp4")
+                        out = os.path.join(tmp, "output.mp4")
+                        with open(inp, "wb") as f:
                             f.write(uploaded_file.getbuffer())
-                        
-                        output_path = os.path.join(tmp_dir, "processed_video.mp4")
-                        
-                        with st.spinner("Processing video... This may take a few minutes depending on length."):
-                            process_video(
-                                input_path, 
-                                output_path, 
-                                speed=speed, 
-                                zoom=zoom, 
-                                mirror=mirror, 
-                                color_jitter=color_jitter,
-                                enhance_quality=enhance_quality,
-                                vivid_mode=vivid_mode,
-                                cinematic_mode=cinematic_mode
-                            )
-                        
-                        st.success("✅ Video Processed Successfully!")
-                        
-                        # Provide download button
-                        with open(output_path, "rb") as file:
-                            btn = st.download_button(
-                                label="📥 Download Processed Video",
-                                data=file,
-                                file_name="automator_result.mp4",
+
+                        with st.spinner("⚙️  Rendering frames — this may take a few minutes…"):
+                            process_video(inp, out,
+                                          speed=speed, zoom=zoom,
+                                          mirror=mirror, color_jitter=color_jitter,
+                                          enhance_quality=enhance,
+                                          vivid_mode=vivid,
+                                          cinematic_mode=cinematic)
+
+                        st.balloons()
+                        st.success("✅  Render complete! Your file is ready.")
+
+                        with open(out, "rb") as f:
+                            st.download_button(
+                                "📥  Download Final Render",
+                                data=f,
+                                file_name="automator_output.mp4",
                                 mime="video/mp4"
                             )
                 except Exception as e:
-                    st.error(f"An error occurred: {e}")
-            else:
-                st.warning("Please upload a video first!")
+                    st.error(f"Render failed: {e}")
+
+    st.markdown('</div>', unsafe_allow_html=True)  # close .video-tool
 
 if __name__ == "__main__":
     main()
