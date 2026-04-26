@@ -5,19 +5,15 @@ import cv2
 
 def enhance_frame(frame):
     """
-    Applies high-quality sharpening, bilateral denoising, and color enhancement.
+    Applies fast high-quality sharpening and color enhancement.
     """
-    # 1. Bilateral Denoising (Removes noise while preserving edges)
-    # d=5 (pixel neighborhood), sigmaColor=75, sigmaSpace=75
-    denoised = cv2.bilateralFilter(frame, 5, 75, 75)
+    # 1. Fast Sharpening (Unsharp Mask)
+    # Using a simpler sharpening kernel is much faster than bilateral filtering
+    gaussian_blur = cv2.GaussianBlur(frame, (0, 0), 3)
+    sharpened = cv2.addWeighted(frame, 1.5, gaussian_blur, -0.5, 0)
     
-    # 2. Sharpening (Unsharp Mask)
-    gaussian_blur = cv2.GaussianBlur(denoised, (0, 0), 3)
-    sharpened = cv2.addWeighted(denoised, 1.5, gaussian_blur, -0.5, 0)
-    
-    # 3. Color Enhancement (Vibrance boost)
+    # 2. Color Enhancement (Vibrance boost)
     hsv = cv2.cvtColor(sharpened, cv2.COLOR_RGB2HSV)
-    # Smoothly increase saturation
     hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.15, 0, 255).astype(np.uint8)
     enhanced = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
     
@@ -94,14 +90,13 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
     clip.write_videofile(output_path, 
                         codec='libx264', 
                         audio_codec='aac',
-                        audio_bitrate='320k', # Studio Quality Audio
+                        audio_bitrate='320k', 
                         temp_audiofile='temp-audio.m4a', 
                         remove_temp=True,
-                        threads=os.cpu_count(), # Use all available cores
+                        threads=os.cpu_count(), 
                         fps=clip.fps,
-                        preset='slow',
-                        ffmpeg_params=ffmpeg_params,
-                        logger=None) # Hide logs for cleaner output
+                        preset='medium', # Faster than 'slow'
+                        ffmpeg_params=ffmpeg_params) 
     
     clip.close()
     return output_path
