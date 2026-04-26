@@ -50,8 +50,20 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
             x_center=w/2, y_center=h/2, 
             width=new_w, height=new_h
         )
-        # Resize back to original dimensions
-        clip = clip.resized(width=w, height=h)
+        
+        # Ensure target dimensions are even for H.264 encoder
+        target_w = int(w // 2) * 2
+        target_h = int(h // 2) * 2
+        
+        # Resize back to even original dimensions
+        clip = clip.resized(width=target_w, height=target_h)
+    else:
+        # Even if no zoom, ensure original dimensions are even
+        w, h = clip.size
+        if w % 2 != 0 or h % 2 != 0:
+            target_w = (w // 2) * 2
+            target_h = (h // 2) * 2
+            clip = clip.resized(width=target_w, height=target_h)
         
     # 4. Color Jitter (Subtle brightness/contrast)
     if color_jitter:
