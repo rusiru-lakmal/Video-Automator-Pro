@@ -57,7 +57,7 @@ def main():
 
     with col1:
         st.subheader("📁 Upload Video")
-        uploaded_file = st.file_uploader("Choose an MP4 file", type=['mp4'])
+        uploaded_file = st.file_uploader("Choose a video file (MP4 or MOV)", type=['mp4', 'mov'])
         
         if uploaded_file:
             st.video(uploaded_file)
