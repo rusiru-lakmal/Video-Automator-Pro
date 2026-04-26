@@ -1,7 +1,12 @@
+# Core
 streamlit
-moviepy
+setuptools
 numpy
-opencv-python
+Pillow
+moviepy
+opencv-python-headless
+
+# ML / AI
 torch
 torchvision
 torchaudio
@@ -9,5 +14,8 @@ basicsr
 gfpgan
 realesrgan
 rembg
-Pillow
+
+# UI / Helpers
 streamlit-image-comparison
+future
+ffmpeg-python

@@ -12,3 +12,4 @@ temp-audio.m4a
 test_data/
 *.mp4
 .streamlit/
+gfpgan/weights/
