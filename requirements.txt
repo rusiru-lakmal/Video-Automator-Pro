@@ -5,13 +5,16 @@ markdown-it-py==4.0.0
 mdurl==0.1.2
 pygments==2.20.0
 setuptools
+wheel
+cython
 numpy<2.0.0
 Pillow
 moviepy
 opencv-python-headless
 torch
 torchvision
-git+https://github.com/XPixelGroup/BasicSR.git
+git+https://github.com/aksh-ay/BasicSR.git
+facexlib
 gfpgan
 realesrgan
 rembg
