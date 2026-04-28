@@ -28,7 +28,52 @@ def enhance_frame(frame, vivid_mode=False):
     
     return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
 
-def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, color_jitter=True, enhance_quality=False, vivid_mode=False, cinematic_mode=False):
+def remove_watermark_frame(frame):
+    """
+    Surgically removes the "Veo" watermark from the bottom-right corner.
+    Uses thresholding to isolate only the text pixels, minimizing blur.
+    """
+    h, w = frame.shape[:2]
+    
+    # 1. Define the search region (Bottom-Right)
+    # We use a slightly larger area to ensure we capture the whole "veo" text
+    y_start, y_end = int(h * 0.85), int(h * 0.98)
+    x_start, x_end = int(w * 0.80), int(w * 0.99)
+    
+    # Extract the region of interest (ROI)
+    roi = frame[y_start:y_end, x_start:x_end]
+    
+    # 2. Isolate the watermark text using color thresholding
+    # Veo watermark is usually semi-transparent white/grey.
+    # We look for high brightness (Value channel in HSV) and low saturation.
+    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_RGB2HSV)
+    
+    # Threshold for "whitish" pixels
+    # Lower bound: moderate brightness, low saturation
+    # Upper bound: max brightness, low-moderate saturation (to catch greyish edges)
+    lower_white = np.array([0, 0, 160]) # High value (brightness)
+    upper_white = np.array([180, 60, 255]) # Low saturation
+    
+    mask_roi = cv2.inRange(hsv_roi, lower_white, upper_white)
+    
+    # 3. Refine the mask
+    # Apply morphological dilation to ensure the edges of the text are fully covered
+    kernel = np.ones((3, 3), np.uint8)
+    mask_roi = cv2.dilate(mask_roi, kernel, iterations=1)
+    
+    # 4. Create the full-frame mask
+    full_mask = np.zeros((h, w), dtype=np.uint8)
+    full_mask[y_start:y_end, x_start:x_end] = mask_roi
+    
+    # 5. Apply Inpainting
+    # Use a small radius for surgical precision
+    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    inpainted_bgr = cv2.inpaint(frame_bgr, full_mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
+    
+    return cv2.cvtColor(inpainted_bgr, cv2.COLOR_BGR2RGB)
+
+def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, color_jitter=True, 
+                  enhance_quality=False, vivid_mode=False, cinematic_mode=False, remove_veo_watermark=False):
     """
     Processes a video with various effects to avoid copyright detection and add cinematic quality.
     """
@@ -101,7 +146,11 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
             vfx.MultiplyColor(1.05) # Subtle brightness boost
         ])
     
-    # 6. Quality Enhancement (Sharpening & Saturation)
+    # 6. Watermark Removal
+    if remove_veo_watermark:
+        clip = clip.image_transform(remove_watermark_frame)
+
+    # 7. Quality Enhancement (Sharpening & Saturation)
     if enhance_quality:
         clip = clip.image_transform(lambda f: enhance_frame(f, vivid_mode=vivid_mode or cinematic_mode))
     

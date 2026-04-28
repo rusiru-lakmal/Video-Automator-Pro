@@ -111,6 +111,7 @@ def main():
         with col_b:
             color_jitter  = st.checkbox("🎨 Color Jitter", value=True)
             vivid         = st.checkbox("🌈 Vivid Mode", value=False)
+            no_veo        = st.checkbox("🚫 No Veo", value=False, help="Removes the Veo watermark from the bottom-right corner")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -132,7 +133,8 @@ def main():
                                           mirror=mirror, color_jitter=color_jitter,
                                           enhance_quality=enhance,
                                           vivid_mode=vivid,
-                                          cinematic_mode=cinematic)
+                                          cinematic_mode=cinematic,
+                                          remove_veo_watermark=no_veo)
 
                         st.balloons()
                         st.success("✅  Render complete! Your file is ready.")
