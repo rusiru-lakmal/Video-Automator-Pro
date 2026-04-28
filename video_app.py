@@ -123,9 +123,18 @@ def main():
                 st.warning("Please upload a video first.")
             else:
                 try:
+                    # Use the shared downloads directory for high-speed Nginx serving
+                    download_dir = "/app/downloads"
+                    if not os.path.exists(download_dir):
+                        os.makedirs(download_dir)
+                    
+                    import uuid
+                    unique_id = uuid.uuid4().hex[:8]
+                    output_filename = f"output_{unique_id}.mp4"
+                    out = os.path.join(download_dir, output_filename)
+
                     with tempfile.TemporaryDirectory() as tmp:
                         inp = os.path.join(tmp, "input.mp4")
-                        out = os.path.join(tmp, "output.mp4")
                         with open(inp, "wb") as f:
                             f.write(uploaded_file.getbuffer())
 
@@ -142,13 +151,30 @@ def main():
                         st.balloons()
                         st.success("✅  Render complete! Your file is ready.")
 
-                        with open(out, "rb") as f:
-                            st.download_button(
-                                "📥  Download Final Render",
-                                data=f,
-                                file_name="automator_output.mp4",
-                                mime="video/mp4"
-                            )
+                        # Direct High-Speed Download Link via Nginx
+                        download_url = f"/downloads/{output_filename}"
+                        st.markdown(f"""
+                            <div style="margin-top: 20px;">
+                                <a href="{download_url}" download style="
+                                    text-decoration: none;
+                                    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+                                    color: white;
+                                    padding: 14px 28px;
+                                    border-radius: 12px;
+                                    font-weight: 600;
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 10px;
+                                    box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+                                    transition: transform 0.2s;
+                                " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                                    📥 Download Final Render (High Speed)
+                                </a>
+                                <p style="font-size: 0.8rem; color: rgba(255,255,255,0.4); margin-top: 10px;">
+                                    Served directly via Nginx for maximum bandwidth.
+                                </p>
+                            </div>
+                        """, unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Render failed: {e}")
 
