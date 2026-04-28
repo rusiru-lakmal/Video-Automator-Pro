@@ -106,12 +106,14 @@ def main():
         col_a, col_b = st.columns(2)
         with col_a:
             mirror        = st.checkbox("↔ Mirror", value=True)
-            enhance       = st.checkbox("✨ AI Enhance", value=False)
+            enhance       = st.checkbox("✨ AI Enhance", value=False, help="Pro-grade sharpening & detail restoration")
             cinematic     = st.checkbox("🎬 Cinematic 9:16", value=False)
         with col_b:
             color_jitter  = st.checkbox("🎨 Color Jitter", value=True)
             vivid         = st.checkbox("🌈 Vivid Mode", value=False)
-            no_veo        = st.checkbox("🚫 No Veo", value=False, help="Removes the Veo watermark from the bottom-right corner")
+            no_veo        = st.checkbox("🚫 No Veo", value=False, help="Surgical watermark removal")
+        
+        upscale_4k = st.checkbox("🚀 4K Ultra HD", value=False, help="Upscale to 3840x2160 using Lanczos4 interpolation")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -134,7 +136,8 @@ def main():
                                           enhance_quality=enhance,
                                           vivid_mode=vivid,
                                           cinematic_mode=cinematic,
-                                          remove_veo_watermark=no_veo)
+                                          remove_veo_watermark=no_veo,
+                                          upscale_4k=upscale_4k)
 
                         st.balloons()
                         st.success("✅  Render complete! Your file is ready.")
