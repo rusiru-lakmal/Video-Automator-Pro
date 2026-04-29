@@ -2,6 +2,9 @@ import os
 from moviepy import VideoFileClip, vfx
 import numpy as np
 import cv2
+import torch
+from PIL import Image
+from torchvision.transforms.functional import to_tensor, to_pil_image
 
 def enhance_frame(frame, vivid_mode=False):
     """
@@ -33,6 +36,100 @@ def enhance_frame(frame, vivid_mode=False):
         hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.1, 0, 255).astype(np.uint8)
     
     return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+def comic_effect(frame):
+    """
+    High-quality Comic/Cartoon transformation using K-Means clustering
+    for clean color blocks and adaptive outlines.
+    """
+    # 1. Color Quantization using K-Means (The "Pro" Look)
+    data = frame.reshape((-1, 3)).astype(np.float32)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
+    K = 8  # Number of distinct colors (lower = more "comic" look)
+    _, label, center = cv2.kmeans(data, K, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+    center = np.uint8(center)
+    quantized = center[label.flatten()].reshape(frame.shape)
+
+    # 2. Smooth the quantized image to remove "pixel jitter"
+    color = cv2.medianBlur(quantized, 5)
+
+    # 3. Create strong, clean outlines
+    gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+    edges = cv2.adaptiveThreshold(cv2.medianBlur(gray, 7), 255,
+                                 cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                 cv2.THRESH_BINARY, 9, 8)
+
+    # 4. Combine and boost vibrancy
+    edges_3ch = cv2.cvtColor(edges, cv2.COLOR_GRAY2RGB)
+    cartoon = cv2.bitwise_and(color, edges_3ch)
+    
+    return cartoon
+
+def painterly_effect(frame):
+    """
+    Transforms a frame into a soft, hand-painted illustration style 
+    using multi-stage Bilateral Filtering and Saturation curves.
+    """
+    # 1. Iterative Bilateral Filtering (Creates the "Ghibli" soft look)
+    color = frame.copy()
+    for _ in range(2):
+        color = cv2.bilateralFilter(color, d=9, sigmaColor=75, sigmaSpace=75)
+
+    # 2. Median Blur to flatten large areas
+    color = cv2.medianBlur(color, 5)
+
+    # 3. Color Grading (Warmth and Pop)
+    hsv = cv2.cvtColor(color, cv2.COLOR_RGB2HSV)
+    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.3, 0, 255).astype(np.uint8)
+    hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.1, 0, 255).astype(np.uint8)
+    
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+def load_ai_model():
+    """
+    Loads the AnimeGANv2 model from a local weights file.
+    """
+    # Load the architecture from the hub repo (code only)
+    model = torch.hub.load("AK391/animegan2-pytorch:main", "generator", pretrained=False)
+    
+    # Load the local weights we just downloaded
+    weights_path = "face_paint_512_v2.pt"
+    if os.path.exists(weights_path):
+        state_dict = torch.load(weights_path, map_location="cpu")
+        model.load_state_dict(state_dict)
+    
+    model.eval()
+    return model
+
+def apply_ai_style(frame, model, device="cpu"):
+    """
+    Applies AnimeGANv2 stylization to a single frame.
+    """
+    with torch.no_grad():
+        # 1. Convert to PIL and Pre-process
+        img = Image.fromarray(frame).convert("RGB")
+        
+        # Resize for speed/memory optimization if frame is too large
+        # AI works best at standard resolutions
+        orig_size = img.size
+        if max(orig_size) > 1080:
+            img = img.resize((w // 2 for w in orig_size), Image.LANCZOS)
+        
+        input_tensor = to_tensor(img).unsqueeze(0) * 2 - 1
+        
+        # 2. Run AI Inference
+        out = model(input_tensor.to(device)).squeeze(0).cpu()
+        
+        # 3. Post-process and return as numpy
+        out = (out * 0.5 + 0.5).clamp(0, 1)
+        out_img = to_pil_image(out)
+        
+        # Resize back to original if we downsampled
+        if out_img.size != orig_size:
+            out_img = out_img.resize(orig_size, Image.LANCZOS)
+            
+        return np.array(out_img)
+
 
 def remove_watermark_frame(frame):
     """
@@ -77,7 +174,11 @@ def remove_watermark_frame(frame):
 
 def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, color_jitter=True, 
                   enhance_quality=False, vivid_mode=False, cinematic_mode=False, 
-                  remove_veo_watermark=False, upscale_4k=False):
+                  remove_veo_watermark=False, upscale_4k=False, comic_style=False,
+                  painterly_style=False, ai_style=False, progress_callback=None):
+
+
+
     """
     Processes a video with advanced enhancements, optional 4K upscaling, and watermark removal.
     """
@@ -139,6 +240,29 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
     # 8. Detail Enhancement (Pro Sharpening & CLAHE)
     if enhance_quality:
         clip = clip.image_transform(lambda f: enhance_frame(f, vivid_mode=vivid_mode or cinematic_mode))
+    
+    # 9. Comic Style Effect
+    if comic_style:
+        clip = clip.image_transform(comic_effect)
+    
+    # 10. AI / Real Comic Style Effect
+    if ai_style:
+        model = load_ai_model()
+        total_frames = int(clip.duration * clip.fps)
+        current_frame = 0
+        
+        def ai_wrapper(f):
+            nonlocal current_frame
+            current_frame += 1
+            if progress_callback:
+                progress_callback(current_frame / total_frames)
+            return apply_ai_style(f, model)
+            
+        clip = clip.image_transform(ai_wrapper)
+    
+    # 11. Painterly/Illustrated Effect (Manual version)
+    if painterly_style and not ai_style:
+        clip = clip.image_transform(painterly_effect)
     
     # Final safety check: Force even dimensions
     final_w, final_h = clip.size

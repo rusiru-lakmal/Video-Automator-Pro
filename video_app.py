@@ -112,6 +112,9 @@ def main():
             color_jitter  = st.checkbox("🎨 Color Jitter", value=True)
             vivid         = st.checkbox("🌈 Vivid Mode", value=False)
             no_veo        = st.checkbox("🚫 No Veo", value=False, help="Surgical watermark removal")
+            comic_style   = st.checkbox("💥 Comic Style", value=False, help="Transform video into a comic book/cartoon version")
+            painterly     = st.checkbox("🎨 Painterly Style", value=False, help="Soft, hand-painted illustration style (like your sample)")
+            ai_style      = st.checkbox("🤖 Real AI Style", value=False, help="EXTREMELY SLOW - Professional AI hand-drawn look (AnimeGANv2)")
         
         upscale_4k = st.checkbox("🚀 4K Ultra HD", value=False, help="Upscale to 3840x2160 using Lanczos4 interpolation")
 
@@ -123,8 +126,9 @@ def main():
                 st.warning("Please upload a video first.")
             else:
                 try:
-                    # Use the shared downloads directory for high-speed Nginx serving
-                    download_dir = "/app/downloads"
+                    # Automatically find the downloads directory (works on Mac and Server)
+                    base_dir = os.getcwd()
+                    download_dir = os.path.join(base_dir, "downloads")
                     if not os.path.exists(download_dir):
                         os.makedirs(download_dir)
                     
@@ -138,7 +142,17 @@ def main():
                         with open(inp, "wb") as f:
                             f.write(uploaded_file.getbuffer())
 
-                        with st.spinner("⚙️  Rendering frames — this may take a few minutes…"):
+                        if ai_style:
+                            st.info("💡 Real AI Style is very intensive. It will take ~2 seconds per frame. A 10s video might take 15 minutes.")
+                        
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+
+                        def update_progress(percent):
+                            progress_bar.progress(percent)
+                            status_text.text(f"Processing AI Frames: {int(percent*100)}%")
+
+                        with st.spinner("⚙️  Initializing AI Model & Rendering..."):
                             process_video(inp, out,
                                           speed=speed, zoom=zoom,
                                           mirror=mirror, color_jitter=color_jitter,
@@ -146,12 +160,16 @@ def main():
                                           vivid_mode=vivid,
                                           cinematic_mode=cinematic,
                                           remove_veo_watermark=no_veo,
-                                          upscale_4k=upscale_4k)
+                                          upscale_4k=upscale_4k,
+                                          comic_style=comic_style,
+                                          painterly_style=painterly,
+                                          ai_style=ai_style,
+                                          progress_callback=update_progress if ai_style else None)
 
                         st.balloons()
                         st.success("✅  Render complete! Your file is ready.")
 
-                        # Direct High-Speed Download Link via Nginx
+                        # Direct High-Speed Download Link via Nginx (Server only)
                         download_url = f"/downloads/{output_filename}"
                         st.markdown(f"""
                             <div style="margin-top: 20px;">
@@ -168,13 +186,19 @@ def main():
                                     box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
                                     transition: transform 0.2s;
                                 " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-                                    📥 Download Final Render (High Speed)
+                                    🚀 Server Download (Instant)
                                 </a>
-                                <p style="font-size: 0.8rem; color: rgba(255,255,255,0.4); margin-top: 10px;">
-                                    Served directly via Nginx for maximum bandwidth.
-                                </p>
                             </div>
                         """, unsafe_allow_html=True)
+
+                        # Standard Fallback Download (Works on Mac)
+                        with open(out, "rb") as f:
+                            st.download_button(
+                                "📥  Download to Mac (Standard)",
+                                data=f,
+                                file_name=output_filename,
+                                mime="video/mp4"
+                            )
                 except Exception as e:
                     st.error(f"Render failed: {e}")
 
