@@ -103,28 +103,34 @@ def load_ai_model():
 
 def apply_ai_style(frame, model, device="cpu"):
     """
-    Applies AnimeGANv2 stylization to a single frame.
+    Applies AnimeGANv2 stylization with strict memory optimization.
+    Processes at a fixed resolution and upscales back to prevent crashes.
     """
+    import gc
     with torch.no_grad():
-        # 1. Convert to PIL and Pre-process
+        # 1. Convert to PIL
         img = Image.fromarray(frame).convert("RGB")
-        
-        # Resize for speed/memory optimization if frame is too large
-        # AI works best at standard resolutions
         orig_size = img.size
-        if max(orig_size) > 1080:
-            img = img.resize((w // 2 for w in orig_size), Image.LANCZOS)
+        
+        # 2. STABILITY FIX: Resize to a fixed "AI Friendly" resolution
+        # This prevents the server from running out of RAM
+        ai_res = 512 
+        img = img.resize((ai_res, ai_res), Image.LANCZOS)
         
         input_tensor = to_tensor(img).unsqueeze(0) * 2 - 1
         
-        # 2. Run AI Inference
+        # 3. Run AI Inference
         out = model(input_tensor.to(device)).squeeze(0).cpu()
         
-        # 3. Post-process and return as numpy
+        # 4. Cleanup memory immediately
+        del input_tensor
+        gc.collect()
+        
+        # 5. Post-process
         out = (out * 0.5 + 0.5).clamp(0, 1)
         out_img = to_pil_image(out)
         
-        # Resize back to original if we downsampled
+        # 6. Resize back to original high-quality resolution
         if out_img.size != orig_size:
             out_img = out_img.resize(orig_size, Image.LANCZOS)
             
