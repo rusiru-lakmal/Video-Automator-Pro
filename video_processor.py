@@ -292,7 +292,7 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
                         audio_bitrate='320k', 
                         temp_audiofile='temp-audio.m4a', 
                         remove_temp=True,
-                        threads=os.cpu_count(), 
+                        threads=1, # Crucial for 2GB RAM servers to prevent OOM
                         fps=clip.fps,
                         preset=render_preset,
                         ffmpeg_params=ffmpeg_params) 
