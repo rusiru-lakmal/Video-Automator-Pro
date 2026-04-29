@@ -261,7 +261,8 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
             nonlocal current_frame
             current_frame += 1
             if progress_callback:
-                progress_callback(current_frame / total_frames)
+                # Use min(1.0, ...) to prevent math errors from exceeding 100%
+                progress_callback(min(1.0, current_frame / total_frames))
             return apply_ai_style(f, model)
             
         clip = clip.image_transform(ai_wrapper)
