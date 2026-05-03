@@ -1,6 +1,11 @@
 import os
 from moviepy import VideoFileClip, vfx, AudioFileClip
 import imageio_ffmpeg
+from PIL import Image, ImageDraw, ImageFont
+try:
+    from pilmoji import Pilmoji
+except ImportError:
+    Pilmoji = None
 import random
 import numpy as np
 import cv2
@@ -121,41 +126,68 @@ def shift_audio_pitch(audio_path, output_path, n_semitones=0.5):
 
 def draw_text_overlay(frame, text, position="top"):
     """
-    Draws a viral headline/hook on the frame using OpenCV.
+    Draws a viral headline/hook on the frame using PIL for Emoji support.
     """
     if not text:
         return frame
         
     h, w = frame.shape[:2]
-    # Font settings
-    font = cv2.FONT_HERSHEY_DUPLEX
-    font_scale = w / 800  # Dynamic scale based on width
-    thickness = max(2, int(3 * font_scale))
     
-    # Get text size
-    text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
-    text_x = (w - text_size[0]) // 2
+    # 1. Convert frame to PIL Image
+    img = Image.fromarray(frame)
+    draw = ImageDraw.Draw(img)
     
-    # Background bar
-    bar_height = int(text_size[1] * 2.5)
-    overlay = frame.copy()
+    # 2. Setup Font (Try to find a good Mac font)
+    font_size = int(w / 15)
+    font_path = "/System/Library/Fonts/Supplemental/Arial.ttf"
+    if not os.path.exists(font_path):
+        font_path = "arial.ttf" # Fallback to whatever is in path
+        
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except:
+        font = ImageFont.load_default()
+        
+    # 3. Calculate text size for centering
+    # Use textbbox if available (modern PIL), otherwise textsize
+    try:
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+    except AttributeError:
+        text_w, text_h = draw.textsize(text, font=font)
+        
+    text_x = (w - text_w) // 2
+    bar_height = int(text_h * 1.8)
     
+    # 4. Draw background bar
     if position == "top":
-        text_y = int(bar_height * 0.7)
-        cv2.rectangle(overlay, (0, 0), (w, bar_height), (0, 0, 0), -1)
+        bar_shape = [(0, 0), (w, bar_height)]
+        text_y = (bar_height - text_h) // 2 - (text_h * 0.1)
     else:
-        text_y = h - int(bar_height * 0.3)
-        cv2.rectangle(overlay, (0, h - bar_height), (w, h), (0, 0, 0), -1)
+        bar_shape = [(0, h - bar_height), (w, h)]
+        text_y = h - bar_height + (bar_height - text_h) // 2
+        
+    # Semi-transparent black bar
+    overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    overlay_draw.rectangle(bar_shape, fill=(0, 0, 0, 160))
+    img = Image.alpha_composite(img.convert('RGBA'), overlay)
     
-    # Blend background
-    alpha = 0.6
-    cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+    # 5. Draw text (with slight shadow for legibility)
+    if Pilmoji:
+        with Pilmoji(img) as pilmoji:
+            # Shadow
+            pilmoji.text((text_x + 2, text_y + 2), text, font=font, fill=(0, 0, 0, 255))
+            # Main text
+            pilmoji.text((text_x, text_y), text, font=font, fill=(255, 255, 255, 255))
+    else:
+        # Fallback to standard PIL if pilmoji is missing
+        draw = ImageDraw.Draw(img)
+        draw.text((text_x + 2, text_y + 2), text, font=font, fill=(0, 0, 0, 255))
+        draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255, 255), embedded_color=True)
     
-    # Draw text with shadow/outline
-    cv2.putText(frame, text, (text_x + 2, text_y + 2), font, font_scale, (0, 0, 0), thickness + 1)
-    cv2.putText(frame, text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
-    
-    return frame
+    return np.array(img.convert('RGB'))
 
 def load_ai_model():
     """
@@ -211,42 +243,38 @@ def apply_ai_style(frame, model, device="cpu"):
 
 def remove_watermark_frame(frame):
     """
-    Surgically removes the "Veo" watermark from the bottom-right corner.
-    Improved version with wider ROI and relaxed thresholds for better coverage.
+    Surgically removes the "Veo" watermark with improved surgical precision.
+    Reduces dilation and tightens thresholds to prevent blurring.
     """
     h, w = frame.shape[:2]
     
-    # 1. Define a wider search region (Bottom-Right)
-    # Increased margin to ensure we catch text even if slightly offset
-    y_start, y_end = int(h * 0.78), int(h * 0.99)
-    x_start, x_end = int(w * 0.72), int(w * 0.99)
+    # 1. Expanded search region to catch even offset watermarks
+    y_start, y_end = int(h * 0.80), int(h * 0.99)
+    x_start, x_end = int(w * 0.65), int(w * 0.99)
     
-    # Extract the region of interest (ROI)
     roi = frame[y_start:y_end, x_start:x_end]
-    
-    # 2. Isolate the watermark text using relaxed color thresholding
     hsv_roi = cv2.cvtColor(roi, cv2.COLOR_RGB2HSV)
     
-    # Threshold for "whitish" pixels - RELAXED to catch semi-transparent parts
-    # Lower bound: 100 brightness (was 160)
-    # Upper bound saturation: 100 (was 60)
-    lower_white = np.array([0, 0, 100]) 
+    # 2. More sensitive threshold for faint/semi-transparent white
+    # Lowered V (brightness) to 135 and increased S (saturation) to 100
+    lower_white = np.array([0, 0, 135]) 
     upper_white = np.array([180, 100, 255])
     
     mask_roi = cv2.inRange(hsv_roi, lower_white, upper_white)
     
-    # 3. Refine the mask - STRONGER DILATION
-    # Larger kernel and more iterations ensure anti-aliased edges are covered
-    kernel = np.ones((5, 5), np.uint8)
-    mask_roi = cv2.dilate(mask_roi, kernel, iterations=2)
+    # 3. Refine the mask - Use Closing to connect broken letter parts
+    # Then dilate slightly to cover anti-aliased edges
+    kernel_small = np.ones((3, 3), np.uint8)
+    mask_roi = cv2.morphologyEx(mask_roi, cv2.MORPH_CLOSE, kernel_small)
+    mask_roi = cv2.dilate(mask_roi, kernel_small, iterations=1)
     
     # 4. Create the full-frame mask
     full_mask = np.zeros((h, w), dtype=np.uint8)
     full_mask[y_start:y_end, x_start:x_end] = mask_roi
     
-    # 5. Apply Inpainting
+    # 5. Apply Inpainting with optimal balance
     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    inpainted_bgr = cv2.inpaint(frame_bgr, full_mask, inpaintRadius=5, flags=cv2.INPAINT_TELEA)
+    inpainted_bgr = cv2.inpaint(frame_bgr, full_mask, inpaintRadius=4, flags=cv2.INPAINT_TELEA)
     
     return cv2.cvtColor(inpainted_bgr, cv2.COLOR_BGR2RGB)
 
