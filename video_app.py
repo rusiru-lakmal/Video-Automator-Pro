@@ -120,6 +120,33 @@ def main():
 
         st.markdown("<br>", unsafe_allow_html=True)
 
+        # -- Viral Growth Card --
+        st.markdown("""
+        <div class="glass-card">
+            <div class="card-header">
+                <div class="card-icon icon-green">📈</div>
+                <div>
+                    <div class="card-title">Viral Optimization</div>
+                    <div class="card-subtitle">Algorithmic growth hackers</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        pitch_shift = st.slider("Audio Pitch Shift", -2.0, 2.0, 0.5, 0.1, 
+                                help="Slightly shifts voice/music pitch to bypass audio ID matching. 0.5 is ideal.")
+        
+        viral_hook = st.text_input("Viral Hook / Headline", placeholder="Wait for the end... 😱", help="A catchy headline to grab attention")
+        hook_pos = st.radio("Hook Position", ["top", "bottom"], horizontal=True)
+
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            add_grain = st.checkbox("🎞️ Film Grain", value=True, help="Adds moving texture to bypass pixel-hashing")
+        with col_v2:
+            clean_meta = st.checkbox("🧹 Clean Metadata", value=True, help="Strip EXIF and tracking data from file")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
         # -- Render Button --
         if st.button("🚀  Process & Render", key="video_render_btn"):
             if uploaded_file is None:
@@ -164,6 +191,11 @@ def main():
                                           comic_style=comic_style,
                                           painterly_style=painterly,
                                           ai_style=ai_style,
+                                          pitch_shift=pitch_shift,
+                                          add_grain=add_grain,
+                                          clean_meta=clean_meta,
+                                          viral_hook=viral_hook,
+                                          hook_pos=hook_pos,
                                           progress_callback=update_progress if ai_style else None)
 
                         st.balloons()

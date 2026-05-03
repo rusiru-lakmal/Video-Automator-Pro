@@ -1,5 +1,7 @@
 import os
-from moviepy import VideoFileClip, vfx
+from moviepy import VideoFileClip, vfx, AudioFileClip
+import imageio_ffmpeg
+import random
 import numpy as np
 import cv2
 import torch
@@ -84,6 +86,76 @@ def painterly_effect(frame):
     hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.1, 0, 255).astype(np.uint8)
     
     return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+def add_noise(frame, amount=0.03):
+    """
+    Adds subtle film grain/noise to break pixel-perfect hash matching.
+    """
+    noise = np.random.normal(0, 255 * amount, frame.shape).astype(np.float32)
+    noisy_frame = frame.astype(np.float32) + noise
+    return np.clip(noisy_frame, 0, 255).astype(np.uint8)
+
+def shift_audio_pitch(audio_path, output_path, n_semitones=0.5):
+    """
+    Shifts audio pitch using ffmpeg to bypass audio fingerprinting.
+    Uses imageio_ffmpeg to find the ffmpeg binary for reliability.
+    """
+    factor = 2**(n_semitones/12)
+    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+    
+    cmd = (
+        f"\"{ffmpeg_bin}\" -y -i \"{audio_path}\" "
+        f"-af \"asetrate=44100*{factor},atempo={1/factor}\" "
+        f"\"{output_path}\""
+    )
+    
+    # Run command and check for errors
+    exit_code = os.system(cmd)
+    if exit_code != 0:
+        raise RuntimeError(f"FFmpeg pitch shift failed with exit code {exit_code}. Ensure ffmpeg is installed.")
+        
+    if not os.path.exists(output_path):
+        raise FileNotFoundError(f"FFmpeg failed to create pitched audio file: {output_path}")
+        
+    return output_path
+
+def draw_text_overlay(frame, text, position="top"):
+    """
+    Draws a viral headline/hook on the frame using OpenCV.
+    """
+    if not text:
+        return frame
+        
+    h, w = frame.shape[:2]
+    # Font settings
+    font = cv2.FONT_HERSHEY_DUPLEX
+    font_scale = w / 800  # Dynamic scale based on width
+    thickness = max(2, int(3 * font_scale))
+    
+    # Get text size
+    text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+    text_x = (w - text_size[0]) // 2
+    
+    # Background bar
+    bar_height = int(text_size[1] * 2.5)
+    overlay = frame.copy()
+    
+    if position == "top":
+        text_y = int(bar_height * 0.7)
+        cv2.rectangle(overlay, (0, 0), (w, bar_height), (0, 0, 0), -1)
+    else:
+        text_y = h - int(bar_height * 0.3)
+        cv2.rectangle(overlay, (0, h - bar_height), (w, h), (0, 0, 0), -1)
+    
+    # Blend background
+    alpha = 0.6
+    cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+    
+    # Draw text with shadow/outline
+    cv2.putText(frame, text, (text_x + 2, text_y + 2), font, font_scale, (0, 0, 0), thickness + 1)
+    cv2.putText(frame, text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
+    
+    return frame
 
 def load_ai_model():
     """
@@ -181,7 +253,10 @@ def remove_watermark_frame(frame):
 def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, color_jitter=True, 
                   enhance_quality=False, vivid_mode=False, cinematic_mode=False, 
                   remove_veo_watermark=False, upscale_4k=False, comic_style=False,
-                  painterly_style=False, ai_style=False, progress_callback=None):
+                  painterly_style=False, ai_style=False, 
+                  pitch_shift=0.0, add_grain=False, clean_meta=True,
+                  viral_hook="", hook_pos="top",
+                  progress_callback=None):
 
 
 
@@ -271,6 +346,23 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
     if painterly_style and not ai_style:
         clip = clip.image_transform(painterly_effect)
     
+    # 12. Viral Optimization: Film Grain
+    if add_grain:
+        clip = clip.image_transform(lambda f: add_noise(f, amount=0.04))
+
+    # 13. Viral Optimization: Audio Pitch Shift
+    if pitch_shift != 0.0:
+        temp_audio = "temp_orig_audio.wav"
+        temp_pitched = "temp_pitched_audio.wav"
+        clip.audio.write_audiofile(temp_audio, codec='pcm_s16le')
+        shift_audio_pitch(temp_audio, temp_pitched, n_semitones=pitch_shift)
+        new_audio = AudioFileClip(temp_pitched)
+        clip = clip.with_audio(new_audio)
+    
+    # 14. Viral Optimization: Hook Overlay
+    if viral_hook:
+        clip = clip.image_transform(lambda f: draw_text_overlay(f, viral_hook, position=hook_pos))
+    
     # Final safety check: Force even dimensions
     final_w, final_h = clip.size
     if final_w % 2 != 0 or final_h % 2 != 0:
@@ -285,6 +377,9 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
         "-color_range", "1" # Ensure full color range
     ]
     
+    if clean_meta:
+        ffmpeg_params.extend(["-map_metadata", "-1"]) # Strip all metadata
+    
     render_preset = 'slow' if (cinematic_mode or upscale_4k) else 'medium'
     
     clip.write_videofile(output_path, 
@@ -298,5 +393,10 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
                         preset=render_preset,
                         ffmpeg_params=ffmpeg_params) 
     
+    # Cleanup pitched audio temps
+    if pitch_shift != 0.0:
+        if os.path.exists("temp_orig_audio.wav"): os.remove("temp_orig_audio.wav")
+        if os.path.exists("temp_pitched_audio.wav"): os.remove("temp_pitched_audio.wav")
+
     clip.close()
     return output_path
