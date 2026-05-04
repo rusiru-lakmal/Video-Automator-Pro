@@ -142,6 +142,7 @@ def main():
         col_v1, col_v2 = st.columns(2)
         with col_v1:
             add_grain = st.checkbox("🎞️ Film Grain", value=True, help="Adds moving texture to bypass pixel-hashing")
+            seamless_loop = st.checkbox("♾️ Seamless Loop", value=False, help="Fades the end into the start for infinite rewatching")
         with col_v2:
             clean_meta = st.checkbox("🧹 Clean Metadata", value=True, help="Strip EXIF and tracking data from file")
 
@@ -196,6 +197,7 @@ def main():
                                           clean_meta=clean_meta,
                                           viral_hook=viral_hook,
                                           hook_pos=hook_pos,
+                                          seamless_loop=seamless_loop,
                                           progress_callback=update_progress if ai_style else None)
 
                         st.balloons()

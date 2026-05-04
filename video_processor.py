@@ -284,6 +284,7 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
                   painterly_style=False, ai_style=False, 
                   pitch_shift=0.0, add_grain=False, clean_meta=True,
                   viral_hook="", hook_pos="top",
+                  seamless_loop=False,
                   progress_callback=None):
 
 
@@ -390,6 +391,22 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
     # 14. Viral Optimization: Hook Overlay
     if viral_hook:
         clip = clip.image_transform(lambda f: draw_text_overlay(f, viral_hook, position=hook_pos))
+
+    # 15. Viral Optimization: Seamless Loop
+    if seamless_loop and clip.duration > 2.0:
+        # Crossfade transition (0.5s)
+        trans_duration = 0.5
+        # The last 0.5s will be faded over the first 0.5s
+        end_clip = clip.subclipped(start_time=clip.duration - trans_duration)
+        main_clip = clip.subclipped(0, clip.duration - trans_duration)
+        
+        from moviepy.video.VideoClip import ColorClip
+        from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
+        
+        # Overlay end over start with a fade
+        end_clip = end_clip.with_effects([vfx.CrossFadeIn(trans_duration)])
+        # Use a list to ensure order, and set duration explicitly to main_clip.duration
+        clip = CompositeVideoClip([main_clip, end_clip.with_start(0)]).with_duration(main_clip.duration)
     
     # Final safety check: Force even dimensions
     final_w, final_h = clip.size
