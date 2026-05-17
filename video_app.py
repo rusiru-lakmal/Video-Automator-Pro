@@ -1,7 +1,59 @@
 import streamlit as st
 import os
 import tempfile
+import time
 from video_processor import process_video
+from proglog import ProgressBarLogger
+
+class StreamlitProgressLogger(ProgressBarLogger):
+    def __init__(self, progress_bar, status_text, stage_name="Rendering Video"):
+        super().__init__()
+        self.progress_bar = progress_bar
+        self.status_text = status_text
+        self.stage_name = stage_name
+        self.start_time = time.time()
+        self.last_update = 0
+
+    def bars_callback(self, bar, attr, value, old_value=None):
+        if not self.progress_bar or not self.status_text:
+            return
+            
+        current_time = time.time()
+        # Limit update frequency to 5 times per second to prevent Streamlit lag
+        if current_time - self.last_update < 0.2 and value < self.bars[bar]['total']:
+            return
+            
+        self.last_update = current_time
+        total = self.bars[bar].get('total', 1)
+        if total <= 0:
+            return
+            
+        percentage = min(1.0, value / total)
+        elapsed = current_time - self.start_time
+        
+        # Calculate ETA
+        if percentage > 0.01:
+            eta_total = elapsed / percentage
+            eta_remaining = eta_total - elapsed
+            
+            # Format elapsed and remaining time nicely
+            if eta_remaining > 60:
+                mins = int(eta_remaining // 60)
+                secs = int(eta_remaining % 60)
+                eta_str = f"{mins}m {secs}s remaining"
+            else:
+                eta_str = f"{int(eta_remaining)}s remaining"
+        else:
+            eta_str = "Calculating ETA..."
+            
+        self.progress_bar.progress(percentage)
+        self.status_text.markdown(f"""
+        <div style="font-size:0.92rem; color:rgba(255,255,255,0.7); margin-top:8px; display:flex; justify-content:space-between;
+                    background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+            <span>⚙️ <strong>{self.stage_name}</strong>: {int(percentage * 100)}%</span>
+            <span style="color:#ff3c64; font-weight:600;">⏳ {eta_str}</span>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ── Video Tool UI ─────────────────────────────────────────────────────────────
 def main():
@@ -176,9 +228,9 @@ def main():
                         progress_bar = st.progress(0)
                         status_text = st.empty()
 
-                        def update_progress(percent):
-                            progress_bar.progress(percent)
-                            status_text.text(f"Processing AI Frames: {int(percent*100)}%")
+                        # Custom logger that tracks all MoviePy progress (with ETA remaining time!)
+                        stage_label = "Processing AI Stylization" if ai_style else "Rendering & Encoding Video"
+                        progress_logger = StreamlitProgressLogger(progress_bar, status_text, stage_name=stage_label)
 
                         with st.spinner("⚙️  Initializing AI Model & Rendering..."):
                             process_video(inp, out,
@@ -198,7 +250,7 @@ def main():
                                           viral_hook=viral_hook,
                                           hook_pos=hook_pos,
                                           seamless_loop=seamless_loop,
-                                          progress_callback=update_progress if ai_style else None)
+                                          logger=progress_logger)
 
                         st.balloons()
                         st.success("✅  Render complete! Your file is ready.")

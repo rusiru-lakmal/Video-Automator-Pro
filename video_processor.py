@@ -124,6 +124,69 @@ def shift_audio_pitch(audio_path, output_path, n_semitones=0.5):
         
     return output_path
 
+def get_font(font_size):
+    """
+    Dynamically finds or downloads a gorgeous font for video headlines.
+    """
+    # 1. Candidate paths across macOS, Linux/Docker, and Windows
+    font_candidates = [
+        # Local cached download
+        "Montserrat-Bold.ttf",
+        "Inter-Bold.ttf",
+        # macOS paths
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        # Linux / Docker paths (Debian/Ubuntu packages)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+        # Noto fonts if installed
+        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+        # Windows paths
+        "C:\\Windows\\Fonts\\arialbd.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+    ]
+    
+    # 2. Try candidates
+    for path in font_candidates:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, font_size)
+            except Exception:
+                continue
+                
+    # 3. If none exist, try to download a premium font (Montserrat Bold) from Google Fonts
+    cached_font_path = "Montserrat-Bold.ttf"
+    try:
+        import urllib.request
+        # Premium Google Font URL
+        url = "https://github.com/google/fonts/raw/main/ofl/montserrat/static/Montserrat-Bold.ttf"
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            with open(cached_font_path, 'wb') as out_file:
+                out_file.write(response.read())
+        if os.path.exists(cached_font_path):
+            return ImageFont.truetype(cached_font_path, font_size)
+    except Exception as e:
+        # Silently fail if offline or error
+        pass
+        
+    # 4. Fallback to basic system font search
+    try:
+        # This will search the system PATH/directories for standard names
+        return ImageFont.truetype("arial.ttf", font_size)
+    except Exception:
+        try:
+            return ImageFont.truetype("DejaVuSans.ttf", font_size)
+        except Exception:
+            # Absolute last resort
+            return ImageFont.load_default()
+
 def draw_text_overlay(frame, text, position="top"):
     """
     Draws a viral headline/hook on the frame using PIL for Emoji support.
@@ -137,16 +200,9 @@ def draw_text_overlay(frame, text, position="top"):
     img = Image.fromarray(frame)
     draw = ImageDraw.Draw(img)
     
-    # 2. Setup Font (Try to find a good Mac font)
+    # 2. Setup Font (Robust fallback chain & auto-downloader)
     font_size = int(w / 15)
-    font_path = "/System/Library/Fonts/Supplemental/Arial.ttf"
-    if not os.path.exists(font_path):
-        font_path = "arial.ttf" # Fallback to whatever is in path
-        
-    try:
-        font = ImageFont.truetype(font_path, font_size)
-    except:
-        font = ImageFont.load_default()
+    font = get_font(font_size)
         
     # 3. Calculate text size for centering
     # Use textbbox if available (modern PIL), otherwise textsize
@@ -285,7 +341,8 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
                   pitch_shift=0.0, add_grain=False, clean_meta=True,
                   viral_hook="", hook_pos="top",
                   seamless_loop=False,
-                  progress_callback=None):
+                  progress_callback=None,
+                  logger="bar"):
 
 
 
@@ -358,6 +415,8 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
     # 10. AI / Real Comic Style Effect
     if ai_style:
         model = load_ai_model()
+        device = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(device)
         total_frames = int(clip.duration * clip.fps)
         current_frame = 0
         
@@ -367,7 +426,7 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
             if progress_callback:
                 # Use min(1.0, ...) to prevent math errors from exceeding 100%
                 progress_callback(min(1.0, current_frame / total_frames))
-            return apply_ai_style(f, model)
+            return apply_ai_style(f, model, device=device)
             
         clip = clip.image_transform(ai_wrapper)
     
@@ -425,7 +484,7 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
     if clean_meta:
         ffmpeg_params.extend(["-map_metadata", "-1"]) # Strip all metadata
     
-    render_preset = 'slow' if (cinematic_mode or upscale_4k) else 'medium'
+    render_preset = 'fast' # Changed from 'slow' / 'medium' for much faster encoding
     
     clip.write_videofile(output_path, 
                         codec='libx264', 
@@ -433,10 +492,11 @@ def process_video(input_path, output_path, speed=1.05, zoom=1.1, mirror=True, co
                         audio_bitrate='320k', 
                         temp_audiofile='temp-audio.m4a', 
                         remove_temp=True,
-                        threads=1, # Crucial for 2GB RAM servers to prevent OOM
+                        threads=8, # Use all M1 cores for speed
                         fps=clip.fps,
                         preset=render_preset,
-                        ffmpeg_params=ffmpeg_params) 
+                        ffmpeg_params=ffmpeg_params,
+                        logger=logger) 
     
     # Cleanup pitched audio temps
     if pitch_shift != 0.0:
